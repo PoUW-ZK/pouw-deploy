@@ -27,4 +27,4 @@ jobs:
           docker run --rm \
             -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" \
             --entrypoint promtool \
-            prom/prometheus:v3.0.0 check config /etc/prometheus/prometheus.yml
+            quay.io/prometheus/prometheus:v3.0.0 check config /etc/prometheus/prometheus.yml
