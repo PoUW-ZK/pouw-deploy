@@ -1,0 +1,9 @@
+apiVersion: 1
+
+providers:
+  - name: pouw
+    folder: PoUW
+    type: file
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards
