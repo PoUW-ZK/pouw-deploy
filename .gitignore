@@ -1,0 +1,11 @@
+.env
+*.secret
+compose.override.yml
+kubeconfig*
+
+data/
+
+.DS_Store
+.idea/
+.vscode/
+*.swp

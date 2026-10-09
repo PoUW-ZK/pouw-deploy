@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Odkomentuj, keď služby budú zverejňovať /metrics.
+  # - job_name: pouw-node
+  #   static_configs:
+  #     - targets: ["node-1:9100"]
+  # - job_name: pouw-indexer
+  #   static_configs:
+  #     - targets: ["indexer:8000"]
+  # - job_name: pouw-workload
+  #   static_configs:
+  #     - targets: ["workload:8001"]
