@@ -10,5 +10,6 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends make curl jq openssl \
     && rm -rf /var/lib/apt/lists/*
 
-# sshd needs root, jobs run as the jenkins user
+# sshd needs root, jobs run as the jenkins user (the SSH login user)
+# trivy:ignore:DS-0002
 USER root
