@@ -1,0 +1,16 @@
+# Encrypt certificates are issued automatically once the domain points
+# to server and ports 80 and 443 are reachable from outside.
+# Locally (*.localhost) Caddy uses its own CA.
+{
+	email {$ACME_EMAIL}
+}
+
+{$JENKINS_HOST} {
+	encode gzip
+	reverse_proxy jenkins:8080
+}
+
+{$GRAFANA_HOST} {
+	encode gzip
+	reverse_proxy grafana:3000
+}

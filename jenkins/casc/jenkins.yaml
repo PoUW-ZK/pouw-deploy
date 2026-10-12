@@ -1,0 +1,73 @@
+# Shared Jenkins configuration
+
+jenkins:
+  systemMessage: "PoUW-ZK Jenkins"
+  numExecutors: 0
+  mode: EXCLUSIVE
+  markupFormatter: plainText
+  nodes:
+    - permanent:
+        name: docker-agent
+        labelString: docker
+        numExecutors: 2
+        mode: NORMAL
+        remoteFS: /home/jenkins/agent
+        retentionStrategy: always
+        launcher:
+          ssh:
+            host: jenkins-agent
+            port: 22
+            credentialsId: jenkins-agent-ssh
+            javaPath: /opt/java/openjdk/bin/java
+            launchTimeoutSeconds: 60
+            maxNumRetries: 10
+            retryWaitTime: 15
+            # The agent is reachable only on the internal Docker network and gets a new host key on every start
+            sshHostKeyVerificationStrategy: nonVerifyingKeyVerificationStrategy
+        nodeProperties:
+          - envVars:
+              env:
+                - key: DOCKER_HOST
+                  value: tcp://docker:2376
+                - key: DOCKER_TLS_VERIFY
+                  value: "1"
+                - key: DOCKER_CERT_PATH
+                  value: /certs/client
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - basicSSHUserPrivateKey:
+              scope: SYSTEM
+              id: jenkins-agent-ssh
+              username: jenkins
+              description: Connection to jenkins-agent
+              privateKeySource:
+                directEntry:
+                  privateKey: "${jenkins_agent_ssh_key}"
+          - usernamePassword:
+              scope: SYSTEM
+              id: smtp
+              description: SMTP account for e-mails from Jenkins
+              username: "${smtp_username}"
+              password: "${smtp_password}"
+
+unclassified:
+  location:
+    url: "${JENKINS_PUBLIC_URL}"
+    # E-mail sender
+    adminAddress: "PoUW Jenkins <${SMTP_FROM:-jenkins@localhost}>"
+  email-ext:
+    mailAccount:
+      smtpHost: "${SMTP_HOST:-}"
+      smtpPort: "${SMTP_PORT:-587}"
+      useTls: true
+      credentialsId: smtp
+  timestamper:
+    allPipelines: true
+
+security:
+  globalJobDslSecurityConfiguration:
+    # Job DSL scripts live only in this repository
+    useScriptSecurity: false

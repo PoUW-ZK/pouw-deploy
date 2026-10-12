@@ -6,7 +6,7 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # Odkomentuj, keď služby budú zverejňovať /metrics.
+  # Uncomment once the services expose /metrics.
   # - job_name: pouw-node
   #   static_configs:
   #     - targets: ["node-1:9100"]

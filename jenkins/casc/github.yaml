@@ -1,0 +1,48 @@
+# Server: login via GitHub and jobs for the PoUW-ZK repositories.
+# Needs a GitHub OAuth App and a GitHub App setup steps are in the README.
+
+jenkins:
+  securityRealm:
+    github:
+      githubWebUri: https://github.com
+      githubApiUri: https://api.github.com
+      clientID: "${github_oauth_client_id}"
+      clientSecret: "${github_oauth_client_secret}"
+      oauthScopes: read:org,user:email
+  authorizationStrategy:
+    # PoUW-ZK members can view and run jobs, JENKINS_ADMINS administer Jenkins
+    github:
+      adminUserNames: "${JENKINS_ADMINS}"
+      organizationNames: PoUW-ZK
+      useRepositoryPermissions: false
+      authenticatedUserReadPermission: false
+      authenticatedUserCreateJobPermission: false
+      allowGithubWebHookPermission: true
+      allowCcTrayPermission: false
+      allowAnonymousReadPermission: false
+      allowAnonymousJobStatusPermission: true
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - gitHubApp:
+              id: github-app
+              description: GitHub App PoUW-ZK Jenkins
+              appID: "${github_app_id}"
+              privateKey: "${github_app_key}"
+              owner: PoUW-ZK
+          - string:
+              scope: SYSTEM
+              id: github-webhook-secret
+              description: Secret for webhooks from GitHub
+              secret: "${github_webhook_secret}"
+
+unclassified:
+  gitHubPluginConfig:
+    hookUrl: "${JENKINS_PUBLIC_URL}github-webhook/"
+    hookSecretConfigs:
+      - credentialsId: github-webhook-secret
+
+jobs:
+  - file: /var/jenkins_casc/jobs/github.groovy

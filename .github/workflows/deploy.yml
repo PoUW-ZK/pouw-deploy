@@ -1,0 +1,75 @@
+name: Deploy
+
+# Deploy to the FIIT server via SSH. The SSH key stored in GitHub can only run
+# scripts/remote.sh (forced command in authorized_keys); passwords stay in
+# `pass` on the server.
+#
+# Environment "staging":
+#   secret DEPLOY_SSH_KEY       private SSH key
+#   var    DEPLOY_HOST          server address
+#   var    DEPLOY_USER          user the network runs under
+#   var    DEPLOY_KNOWN_HOSTS   output of ssh-keyscan -t ed25519 <host>
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        type: choice
+        options: [deploy, restart, status]
+        default: deploy
+      sha:
+        description: Commit from main to deploy (empty = this run). Rollback = an older commit.
+        type: string
+        required: false
+      versions:
+        description: Service versions, e.g. "NODE_VERSION=sha-abc1234 INDEXER_VERSION=sha-def5678" (empty = :main). Filled in by Jenkins after the nightly test.
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 20
+    steps:
+      - name: SSH key
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Run ${{ inputs.action }} on the server
+        env:
+          ACTION: ${{ inputs.action }}
+          SHA: ${{ inputs.sha || github.sha }}
+          VERSIONS: ${{ inputs.versions }}
+          TARGET: ${{ vars.DEPLOY_USER }}@${{ vars.DEPLOY_HOST }}
+        run: |
+          cmd="$ACTION"
+          if [[ "$ACTION" == deploy ]]; then
+            [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha must be a full commit SHA"; exit 1; }
+            # remote.sh validates the versions; here we only check allowed characters
+            [[ "$VERSIONS" =~ ^[A-Za-z0-9_=\ -]*$ ]] || { echo "::error::Invalid versions"; exit 1; }
+            cmd="deploy $SHA $VERSIONS"
+          fi
+          set -o pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$TARGET" "$cmd" | tee out.txt
+          {
+            echo "### $ACTION"
+            echo '```'
+            cat out.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

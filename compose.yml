@@ -1,8 +1,24 @@
 name: pouw
 
+# Profiles (COMPOSE_PROFILES in .env):
+#   no profile   monitoring (Prometheus, Grafana)
+#   jenkins      Jenkins controller, agent and an isolated Docker for tests
+#   proxy        Caddy with HTTPS for Jenkins and Grafana (server only)
+#
+# Ports are published only on 127.0.0.1. On the FIIT server the range
+# 8000-10000 is open from outside and Docker bypasses ufw, so 0.0.0.0 would
+# expose the service. From outside, access goes only through the proxy on 80/443.
+#
+# Secrets go into containers as files in /run/secrets/, never via environment.
+# They are prepared by `make secrets` (random locally, from pass on the server).
+
+x-restart: &restart
+  restart: unless-stopped
+
 services:
   prometheus:
-    image: prom/prometheus:${PROMETHEUS_VERSION:-v3.0.0}
+    <<: *restart
+    image: quay.io/prometheus/prometheus:${PROMETHEUS_VERSION:-v3.0.0}
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=15d
@@ -10,22 +26,37 @@ services:
       - ./monitoring/prometheus:/etc/prometheus:ro
       - prometheus-data:/prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   grafana:
+    <<: *restart
     image: grafana/grafana:${GRAFANA_VERSION:-11.3.0}
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_URL:-http://localhost:3000/}
+    secrets:
+      - grafana_admin_password
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   # node-1:
   #   image: ghcr.io/pouw-zk/pouw-node:${NODE_VERSION:-main}
@@ -38,16 +69,152 @@ services:
   #   image: postgres:16
   #   environment:
   #     POSTGRES_USER: pouw
-  #     POSTGRES_PASSWORD: pouw
+  #     POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
   #     POSTGRES_DB: pouw
+  #   (no ports: 5432 is open from outside on the FIIT firewall)
   #
   # workload:
   #   image: ghcr.io/pouw-zk/pouw-workload:${WORKLOAD_VERSION:-main}
   #
   # dashboard:
   #   image: ghcr.io/pouw-zk/pouw-dashboard:${DASHBOARD_VERSION:-main}
-  #   ports: ["8080:80"]
+
+  jenkins:
+    <<: *restart
+    profiles: [jenkins]
+    build: ./jenkins
+    image: pouw-jenkins:local
+    environment:
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+      # jenkins.yaml is shared, the second file sets the login (github or local)
+      CASC_JENKINS_CONFIG: /var/jenkins_casc/jenkins.yaml,/var/jenkins_casc/${JENKINS_AUTH:-local}.yaml
+      JENKINS_PUBLIC_URL: ${JENKINS_URL:-http://localhost:8080/}
+      JENKINS_ADMINS: ${JENKINS_ADMINS:-Faustynn}
+      # pouw-deploy branch for the local job (JENKINS_AUTH=local)
+      JENKINS_LOCAL_BRANCH: ${JENKINS_LOCAL_BRANCH:-main}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-}
+    secrets:
+      - jenkins_admin_password
+      - jenkins_agent_ssh_key
+      - github_oauth_client_id
+      - github_oauth_client_secret
+      - github_app_id
+      - github_app_key
+      - github_webhook_secret
+      - smtp_username
+      - smtp_password
+    volumes:
+      - ./jenkins/casc:/var/jenkins_casc:ro
+      - jenkins-home:/var/jenkins_home
+    ports:
+      - "127.0.0.1:${JENKINS_PORT:-8080}:8080"
+    networks: [default, jenkins]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/login"]
+      interval: 15s
+      timeout: 5s
+      start_period: 3m
+      retries: 10
+
+  # Agent that runs all jobs (the controller has 0 executors).
+  # Docker commands from jobs go to jenkins-docker, not to the server's Docker,
+  # so a job cannot reach the secrets or the network's containers.
+  jenkins-agent:
+    <<: *restart
+    profiles: [jenkins]
+    build:
+      context: ./jenkins
+      dockerfile: agent.Dockerfile
+    image: pouw-jenkins-agent:local
+    entrypoint: ["/bin/sh", "-c", "exec setup-sshd \"$$(cat /run/secrets/jenkins_agent_ssh_pubkey)\""]
+    environment:
+      DOCKER_HOST: tcp://docker:2376
+      DOCKER_TLS_VERIFY: "1"
+      DOCKER_CERT_PATH: /certs/client
+    secrets:
+      - jenkins_agent_ssh_pubkey
+    volumes:
+      - jenkins-docker-certs:/certs/client:ro
+      # Same path in jenkins-docker too, so bind mounts from the workspace work
+      - jenkins-agent-home:/home/jenkins
+    networks: [jenkins]
+    depends_on:
+      jenkins-docker:
+        condition: service_healthy
+
+  jenkins-docker:
+    <<: *restart
+    profiles: [jenkins]
+    image: docker:dind
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: /certs
+    volumes:
+      - jenkins-docker-certs:/certs/client
+      - jenkins-docker-data:/var/lib/docker
+      - jenkins-agent-home:/home/jenkins
+    networks:
+      jenkins:
+        # The TLS certificate from docker:dind is issued for the name "docker"
+        aliases: [docker]
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  proxy:
+    <<: *restart
+    profiles: [proxy]
+    image: caddy:2
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:-admin@localhost}
+      JENKINS_HOST: ${JENKINS_HOST:-jenkins.localhost}
+      GRAFANA_HOST: ${GRAFANA_HOST:-grafana.localhost}
+    volumes:
+      - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+
+networks:
+  default:
+  jenkins:
+
+secrets:
+  grafana_admin_password:
+    file: ${SECRETS_DIR:-./.secrets}/grafana_admin_password
+  jenkins_admin_password:
+    file: ${SECRETS_DIR:-./.secrets}/jenkins_admin_password
+  jenkins_agent_ssh_key:
+    file: ${SECRETS_DIR:-./.secrets}/jenkins_agent_ssh_key
+  jenkins_agent_ssh_pubkey:
+    file: ${SECRETS_DIR:-./.secrets}/jenkins_agent_ssh_key.pub
+  github_oauth_client_id:
+    file: ${SECRETS_DIR:-./.secrets}/github_oauth_client_id
+  github_oauth_client_secret:
+    file: ${SECRETS_DIR:-./.secrets}/github_oauth_client_secret
+  github_app_id:
+    file: ${SECRETS_DIR:-./.secrets}/github_app_id
+  github_app_key:
+    file: ${SECRETS_DIR:-./.secrets}/github_app_key
+  github_webhook_secret:
+    file: ${SECRETS_DIR:-./.secrets}/github_webhook_secret
+  smtp_username:
+    file: ${SECRETS_DIR:-./.secrets}/smtp_username
+  smtp_password:
+    file: ${SECRETS_DIR:-./.secrets}/smtp_password
 
 volumes:
   prometheus-data:
   grafana-data:
+  jenkins-home:
+  jenkins-agent-home:
+  jenkins-docker-certs:
+  jenkins-docker-data:
+  caddy-data:
+  caddy-config:

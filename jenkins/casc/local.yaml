@@ -1,0 +1,30 @@
+# Local: login admin / password from .secrets/jenkins_admin_password,
+# The pouw-deploy job takes the branch JENKINS_LOCAL_BRANCH from the public repository, it must be pushed to GitHub.
+
+jenkins:
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: admin
+          password: "${jenkins_admin_password}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+jobs:
+  - script: |
+      pipelineJob('pouw-deploy') {
+          definition {
+              cpsScm {
+                  scm {
+                      git {
+                          remote { url('https://github.com/PoUW-ZK/pouw-deploy.git') }
+                          branch('*/${JENKINS_LOCAL_BRANCH}')
+                      }
+                  }
+                  scriptPath('Jenkinsfile')
+                  lightweight(true)
+              }
+          }
+      }
