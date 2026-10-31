@@ -20,7 +20,7 @@ xml() {
 }
 
 # Services in profiles (compose.yml), they may be off
-optional=" node-1 indexer hasura workload dashboard node-exporter cadvisor "
+optional=" dashboard node-exporter cadvisor "
 
 # Container of a running service of the project, empty when it does not run
 container() {
@@ -112,7 +112,7 @@ if [[ -n "$(container cadvisor)" ]]; then
         "for i in \$(seq 20); do wget -qO- 'http://localhost:9090/api/v1/query?query=count(container_last_seen%7Bname%3D~%22.%2B%22%7D)' | grep -q '\"result\":\[{' && exit 0; sleep 3; done; exit 1"
 fi
 
-# Network services (profile `network`)
+# Network services
 # TODO pouw-node#59: curl http://localhost:8000/health once the node serves its API
 check "node-1 is running" node-1 'kill -0 1'
 

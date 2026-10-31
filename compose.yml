@@ -5,7 +5,7 @@ name: pouw
 #   jenkins      Jenkins controller, agent and an isolated Docker for tests
 #   proxy        Caddy with HTTPS for Jenkins and Grafana (server only)
 #   host-metrics node-exporter (the server) and cAdvisor (its containers) for Prometheus
-#   network      node-1, indexer, workload, dashboard until they have images in GHCR
+#   network      services without an image in GHCR yet (dashboard)
 #                (`make dev` builds them from your working copies and adds this profile)
 #
 # Ports are published only on 127.0.0.1. On the FIIT server the range
@@ -152,11 +152,10 @@ services:
   # GraphQL API of the explorer over the indexer database. The image comes from
   # pouw-dashboard/hasura and applies its metadata on start; with metadata that
   # does not match the schema it does not start. The metadata tracks the views
-  # in the schema api, which the indexer creates (its migrations), so Hasura is
-  # in the `network` profile and starts after the indexer.
+  # in the schema api, which the indexer creates (its migrations), so Hasura
+  # starts after the indexer.
   hasura:
     <<: *restart
-    profiles: [network]
     image: ghcr.io/pouw-zk/pouw-dashboard-hasura:${DASHBOARD_HASURA_VERSION:-main}
     # Hasura reads the admin secret and the database URL only from the
     # environment, so they are loaded from /run/secrets just before the start
@@ -183,7 +182,7 @@ services:
         condition: service_healthy
       # The indexer creates the tables and the api views that the metadata
       # tracks. Not required, so a build without an indexer image
-      # (build/skip.yml) still parses; Hasura then does not start.
+      # (build/skip.yml) still parses; Hasura is then switched off too.
       indexer:
         condition: service_healthy
         required: false
@@ -194,16 +193,16 @@ services:
       start_period: 1m
       retries: 10
 
-  # Services of the network. Until a service has an image in GHCR it is in the
-  # `network` profile, so `make up`, the nightly test and staging do not fail
-  # on pull. Once the image exists, delete its `profiles` line.
+  # Services of the network, from GHCR (docker.yml of each repository). A new
+  # service without an image yet goes into the `network` profile, so `make up`,
+  # the nightly test and staging do not fail on pull; once its image exists,
+  # delete its `profiles` line.
   # Variables marked TODO are not agreed with the owner yet.
 
   # Variables: pouw-node/README.md. The store stays in memory (POUW_STORE)
   # until the RocksDB backend exists (pouw-node#69); /data holds the node key.
   node-1:
     <<: *restart
-    profiles: [network]
     image: ghcr.io/pouw-zk/pouw-node:${NODE_VERSION:-main}
     environment:
       POUW_NODE_ID: node-1
@@ -218,7 +217,6 @@ services:
 
   indexer:
     <<: *restart
-    profiles: [network]
     image: ghcr.io/pouw-zk/pouw-indexer:${INDEXER_VERSION:-main}
     # The indexer reads the database only from DATABASE_URL, so the URL is put
     # together from /run/secrets just before the start, as for Hasura. It runs
@@ -247,7 +245,6 @@ services:
 
   workload:
     <<: *restart
-    profiles: [network]
     image: ghcr.io/pouw-zk/pouw-workload:${WORKLOAD_VERSION:-main}
     # Until the light node runs (W5, pouw-node#101) this points to the full node
     environment:

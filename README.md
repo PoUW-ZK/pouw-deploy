@@ -20,13 +20,13 @@ monitoring (Prometheus, Grafana), the network tests and Jenkins, which tests
 | Service | Repository | Locally | Profile |
 | --- | --- | --- | --- |
 | Postgres | - | `docker compose exec postgres psql -U pouw` | always |
-| Hasura (GraphQL of the explorer) | pouw-dashboard/hasura | <http://localhost:8081/v1/graphql> | `network` (needs the indexer's schema) |
+| Hasura (GraphQL of the explorer) | pouw-dashboard/hasura | <http://localhost:8081/v1/graphql> | always (starts after the indexer) |
 | Prometheus | - | <http://localhost:9090> | always |
 | Grafana | - | <http://localhost:3000> | always |
-| node-1 | pouw-node | inside the network only | `network` |
-| indexer | pouw-indexer | <http://localhost:8083> | `network` |
-| workload | pouw-workload | inside the network only | `network` |
-| dashboard (explorer) | pouw-dashboard/web | <http://localhost:8082> | `network` |
+| node-1 | pouw-node | inside the network only | always |
+| indexer | pouw-indexer | <http://localhost:8083> | always |
+| workload | pouw-workload | inside the network only | always |
+| dashboard (explorer) | pouw-dashboard/web | <http://localhost:8082> | `network` (no image yet) |
 | node-exporter, cAdvisor | - | Prometheus → Targets | `host-metrics` |
 | Jenkins | - | <http://localhost:8080> | `jenkins` |
 | Caddy (HTTPS) | - | server only | `proxy` |
@@ -53,7 +53,8 @@ role `anonymous`, like the explorer), Jenkins `admin` /
 
 Docker Compose must be **2.24.4 or newer** (`docker compose version`). Give
 Docker at least 6 GB of RAM and keep 15 GB of free disk: the Rust services
-compile inside Docker. Apple Silicon and x86 both work, every image is multi-arch.
+compile inside Docker. Apple Silicon and x86 both work: the images in GHCR are
+published for linux/amd64 and linux/arm64, `make dev` builds for your machine.
 
 **Windows:** everything runs inside WSL 2, never in PowerShell or Git Bash.
 In Docker Desktop turn on Settings → Resources → WSL integration for your
@@ -104,7 +105,7 @@ make down           # stop everything, data is kept for the next start
 | --- | --- |
 | see my change of a service in the whole network | `make dev` (from whatever branch each `../pouw-*` is on, uncommitted changes too) |
 | test my change against the other services | `make dev-test`, results in `reports/`, then `make test-down` |
-| only the base (Postgres, monitoring) | `make up` |
+| the whole network from GHCR `:main`, without building | `make up` |
 | logs of one service | `make logs s=indexer` |
 | what is built from where | `build/versions.txt` |
 | fixture data for the explorer | `make seed` |
@@ -117,10 +118,11 @@ working copy (no `Dockerfile` yet, e.g. the dashboard before `web/` has a
 project) is taken from GHCR `:main`; when there is none, the service is not
 started and `build/versions.txt` says why.
 
-Without `SRC` (`make up`, Jenkins, staging) the services come from GHCR. They
-stay in the `network` profile until their images are published from `main`
-by `docker.yml`. Then delete the service's `profiles: [network]` line in
-`compose.yml`, from then on `make up`, the nightly test and staging run it.
+Without `SRC` (`make up`, Jenkins, staging) the services come from GHCR,
+published from `main` by `docker.yml` of each repository. A new service stays
+in the `network` profile until its image is published (now only the
+dashboard). Then delete its `profiles: [network]` line in `compose.yml`, from
+then on `make up`, the nightly test and staging run it.
 
 ## Tests: what goes where and who runs it
 
