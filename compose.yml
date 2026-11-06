@@ -207,13 +207,13 @@ services:
     environment:
       POUW_NODE_ID: node-1
       POUW_DATA_DIR: /data
+      # Mock node (pouw-node#59): the API answers from the fixture chain. Remove
+      # this and the mount below when the node serves its own chain.
+      POUW_API_FIXTURES: /fixtures
     volumes:
       - node-1-data:/data
-    # TODO pouw-node#59: the node has no REST API yet, so /health is not served
-    # and healthy only means the process runs. Then: healthcheck: *health
-    healthcheck:
-      <<: *health
-      test: ["CMD-SHELL", "kill -0 1"]
+      - ./fixtures:/fixtures:ro
+    healthcheck: *health
 
   indexer:
     <<: *restart
