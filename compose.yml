@@ -207,13 +207,20 @@ services:
     environment:
       POUW_NODE_ID: node-1
       POUW_DATA_DIR: /data
-      # Mock node (pouw-node#59): the API answers from the fixture chain. Remove
-      # this and the mount below when the node serves its own chain.
-      POUW_API_FIXTURES: /fixtures
     volumes:
       - node-1-data:/data
-      - ./fixtures:/fixtures:ro
-    healthcheck: *health
+    # pouw-node#59 has no REST API yet; until then health means the process runs.
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "kill -0 1"]
+
+  # Read-only workload API stub for local development until pouw-light-node
+  # serves the contracted read routes. Set LIGHT_NODE_URL to this service.
+  light-node-mock:
+    profiles: [mock]
+    image: wiremock/wiremock:${WIREMOCK_VERSION:-3.13.2}
+    volumes:
+      - ./light-node-mock/mappings:/home/wiremock/mappings:ro
 
   indexer:
     <<: *restart

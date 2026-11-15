@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/v1/blocks/head"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "id": "blk:065aa711ce1d00ba4d122cf7bef2c0ccd69cf6dc39537141e489f3660f40c0dc",
+      "header": {
+        "height": 100
+      }
+    }
+  }
+}
