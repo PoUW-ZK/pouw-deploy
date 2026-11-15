@@ -246,13 +246,24 @@ services:
   workload:
     <<: *restart
     image: ghcr.io/pouw-zk/pouw-workload:${WORKLOAD_VERSION:-main}
-    # Until the light node runs (W5, pouw-node#101) this points to the full node
+    # node-1 serves fixtures until the real light node is available.
     environment:
-      LIGHT_NODE_URL: http://node-1:8000
+      LIGHT_NODE_URL: ${LIGHT_NODE_URL:-http://node-1:8000}
     depends_on:
       node-1:
         condition: service_healthy
     healthcheck: *health
+
+  workload-soak:
+    profiles: [soak]
+    image: curlimages/curl:8.12.1
+    restart: "no"
+    entrypoint: ["/bin/sh", "/soak/run.sh"]
+    volumes:
+      - ./soak/run.sh:/soak/run.sh:ro
+    depends_on:
+      workload:
+        condition: service_healthy
 
   # Explorer UI, nginx on port 8080 (pouw-dashboard/web)
   dashboard:
