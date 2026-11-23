@@ -35,6 +35,9 @@ scrape_configs:
   - job_name: pouw-workload
     static_configs:
       - targets: ["workload:8001"]
+  - job_name: pouw-light-node
+    static_configs:
+      - targets: ["light-node:8000"]
 
   # The server and its containers (profile `host-metrics`)
   - job_name: node-exporter

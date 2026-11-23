@@ -164,13 +164,13 @@ test-down: ## Remove the test copy of the network
 	$(TEST) down -v --remove-orphans
 
 # Load tests with pouw-workload, report in reports/load (scripts/load-test.sh).
-# Scenarios: devnet (reads of the real devnet), smoke and soak of pouw-workload.
+# Scenarios: transfers-steady, transfers-spike, transfers, devnet, smoke, soak.
 SCENARIO ?= devnet
 
-load: ## Load test on the running network (staging), watch it in Grafana: PoUW · Load test; SCENARIO=devnet
+load: ## Load test on the running network (staging); watch it in Grafana: PoUW · Load test
 	./scripts/load-test.sh pouw $(SCENARIO)
 
-test-load: ## Load test in a separate copy of the network, like the Jenkins job pouw-load-test; SCENARIO=devnet
+test-load: ## Load test in a separate network copy, like the Jenkins job pouw-load-test
 	SECRETS_SOURCE=local SECRETS_DIR=.secrets ./scripts/secrets.sh
 ifndef IMAGE_TAG
 	$(TEST) pull -q --ignore-buildable

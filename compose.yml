@@ -360,8 +360,30 @@ services:
       - devnet:/devnet:ro
       - node-3-data:/data
 
-  # Read-only workload API stub for local development until pouw-light-node
-  # serves the contracted read routes. Set LIGHT_NODE_URL to this service.
+  light-node:
+    <<: [*restart, *logging]
+    image: ghcr.io/pouw-zk/pouw-node:${NODE_VERSION:-main}
+    entrypoint: ["pouw-light-node"]
+    environment:
+      # The node image defines POUW_DATA_DIR for pouw-node. The light binary
+      # rejects variables it does not own, so remove the inherited value.
+      POUW_DATA_DIR:
+      POUW_CHAIN_SPEC: /devnet/chainspec.json
+      POUW_LIGHT_DATA_DIR: /data
+      POUW_FULL_NODES: http://node-1:8000,http://node-2:8000,http://node-3:8000
+    volumes:
+      - devnet:/devnet:ro
+      - light-node-data:/data
+    depends_on:
+      node-1:
+        condition: service_healthy
+      node-2:
+        condition: service_healthy
+      node-3:
+        condition: service_healthy
+    healthcheck: *health
+
+  # Read-only workload API stub for local development.
   light-node-mock:
     <<: *logging
     profiles: [mock]
@@ -402,14 +424,14 @@ services:
   workload:
     <<: [*restart, *logging]
     image: ghcr.io/pouw-zk/pouw-workload:${WORKLOAD_VERSION:-main}
-    # Reads from node-1 until the light node is in the devnet (pouw-node#105)
     environment:
-      LIGHT_NODE_URL: ${LIGHT_NODE_URL:-http://node-1:8000}
+      LIGHT_NODE_URL: ${LIGHT_NODE_URL:-http://light-node:8000}
+      FULL_NODE_URLS: ${FULL_NODE_URLS:-http://node-1:8000,http://node-2:8000,http://node-3:8000}
     volumes:
       # reads of the real devnet: POST /api/v1/start {"scenario_name": "devnet"}
       - ./devnet/workload.yaml:/opt/pouw-workload/scenarios/devnet.yaml:ro
     depends_on:
-      node-1:
+      light-node:
         condition: service_healthy
     healthcheck: *health
 
@@ -584,6 +606,7 @@ volumes:
   postgres-data:
   # The devnet: its chain spec and the database of each node
   devnet:
+  light-node-data:
   node-1-data:
   node-2-data:
   node-3-data:

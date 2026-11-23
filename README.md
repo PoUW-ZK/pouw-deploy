@@ -27,6 +27,7 @@ monitoring (Prometheus, Grafana), the network tests and Jenkins, which tests
 | Grafana | - | <http://localhost:3000> | always |
 | backup (nightly dump of the database) | - | `BACKUP_DIR`, default `./backups` | always |
 | node-1, node-2, node-3 (the devnet, see below) | pouw-node | inside the network only | always |
+| light-node (verified read API) | pouw-node | inside the network only | always |
 | indexer | pouw-indexer | <http://localhost:8083> | always |
 | workload | pouw-workload | inside the network only | always |
 | dashboard (explorer) | pouw-dashboard/web | <http://localhost:8082> | always |
@@ -47,11 +48,20 @@ docker compose --profile soak run --rm workload-soak
 It starts the `soak` scenario and fails on early termination,
 read failures, or rejected arrivals. Inspect node and generator memory and
 latency in Grafana separately; a successful command alone does not establish
-that memory is stable. The workload defaults to `node-1`. Until its read API
-is available, use the WireMock stub with `COMPOSE_PROFILES=mock` and
-`LIGHT_NODE_URL=http://light-node-mock:8080`; it serves the chain-head read
-used by the smoke and soak scenarios. Use the actual light-node URL when its
-read routes are available.
+that memory is stable.
+
+For the mixed transfer test, start one of:
+
+```bash
+make load SCENARIO=transfers-steady   # 2 tx/s, constant, expected to stay clean
+make load SCENARIO=transfers-spike    # alternating 10 tx/s burst phases
+make load SCENARIO=transfers          # 20 tx/s stress test
+```
+
+The workload reads through `light-node` and submits round-robin to
+`node-1`, `node-2`, and `node-3`. The same scenarios are available in the
+Jenkins **Load test** job. Grafana observes a run; switching a scenario is done
+through the `make` command, Jenkins, or `POST /api/v1/start`.
 
 Logins: Grafana `admin` / `.secrets/grafana_admin_password`, Hasura admin
 secret `.secrets/hasura_admin_secret` (queries without it get the read-only
@@ -76,7 +86,9 @@ Three nodes of pouw-node on one chain:
   `miner-a` (32 × `0x0a`), node-3 to `miner-b` (32 × `0x0b`),
   see `contracts/fixtures/chain.json` in pouw-docs. node-1 is the bootnode:
   node-2 and node-3 dial it (`NODE_BOOTNODES`) and find each other through
-  it. The indexer and the workload read node-1, Prometheus scrapes all three.
+  it. The indexer reads node-1, the workload reads the verified light node, and
+  submissions rotate across all three full nodes. Prometheus scrapes all of
+  them.
 - **Sync.** Gossip (pouw-node#130) carries new blocks to the other nodes, the
   initial sync (pouw-node#128) brings a node that was down up to the tip.
   When two miners find a block at the same height, the chain with more work
@@ -277,6 +289,7 @@ service, also for one that does not run: such a target is `down`, not an error.
 | Job | Target | Status |
 | --- | --- | --- |
 | `pouw-node` | `node-1:9100`, `node-2:9100`, `node-3:9100` (`/metrics`), label `instance="node-1"` ... | the devnet |
+| `pouw-light-node` | `light-node:8000/metrics` | the verified read service |
 | `pouw-indexer` | `indexer:8000/metrics` | down until the indexer serves `/metrics` |
 | `pouw-workload` | `workload:8001/metrics` | down until the workload serves `/metrics` |
 | `node-exporter` | the machine (CPU, memory, disk) | profile `host-metrics` |

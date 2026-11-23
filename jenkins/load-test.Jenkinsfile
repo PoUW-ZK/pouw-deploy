@@ -12,8 +12,8 @@ pipeline {
     agent { label 'docker' }
 
     parameters {
-        choice(name: 'SCENARIO', choices: ['devnet', 'smoke', 'soak'],
-            description: 'devnet: reads of the real devnet (1 min); smoke: chain head (90 s); soak: 1 hour')
+        choice(name: 'SCENARIO', choices: ['transfers-steady', 'transfers-spike', 'transfers', 'devnet', 'smoke', 'soak'],
+            description: 'steady: low constant multi-node load; spike: alternating high/low load; transfers: full 20 tx/s stress')
     }
 
     options {
