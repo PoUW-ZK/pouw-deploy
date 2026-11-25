@@ -38,6 +38,8 @@ SECRETS_SOURCE=local
 SECRETS_DIR=.secrets
 GRAFANA_URL=https://grafana-dev.$domain/
 NODE_CPU_SHARES=256
+# A new chain (devnet-reset) starts 8 times easier than pouw-node's target, see devnet/genesis.sh
+DEVNET_INITIAL_TARGET=000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 BACKUP_DIR=./backups
 # Next to the ports of staging, all on 127.0.0.1
 PROMETHEUS_PORT=19090

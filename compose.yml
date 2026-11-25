@@ -326,6 +326,9 @@ services:
     # Writes into the new volume, which belongs to root
     user: root
     entrypoint: ["/bin/sh", "/template/genesis.sh"]
+    environment:
+      # Target of the first blocks of a new chain, see devnet/genesis.sh
+      DEVNET_INITIAL_TARGET: ${DEVNET_INITIAL_TARGET:-}
     volumes:
       - ./devnet:/template:ro
       - devnet:/devnet
@@ -545,6 +548,9 @@ services:
       DOCKER_HOST: tcp://docker:2376
       DOCKER_TLS_VERIFY: "1"
       DOCKER_CERT_PATH: /certs/client
+      # Every test copy of a job is a new chain on this server: its first
+      # blocks with a target 8 times easier than pouw-node's (devnet/genesis.sh)
+      DEVNET_INITIAL_TARGET: "000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
     secrets:
       - jenkins_agent_ssh_pubkey
     volumes:
