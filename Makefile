@@ -134,7 +134,9 @@ logs: ## Logs of a service, e.g. make logs SERVICE=indexer [SINCE=1h] (without S
 
 check: ## Validate compose, Prometheus with tests of its alerts, Alertmanager and the Caddyfile
 	COMPOSE_PROFILES=jenkins,proxy,network,host-metrics,load $(COMPOSE) config -q
-	sh -n scripts/load-driver.sh scripts/load-test.sh
+	@for script in scripts/load-driver.sh scripts/load-test.sh; do \
+		bash -n "$$script" || exit 1; \
+	done
 	EDGE_NETWORK=pouw-edge COMPOSE_PROFILES=jenkins,proxy,load docker compose -f compose.yml -f compose.edge.yml config -q
 	docker run --rm -v "$(CURDIR)/monitoring/prometheus:/etc/prometheus:ro" \
 		--entrypoint /bin/sh quay.io/prometheus/prometheus:v3.0.0 -c \
