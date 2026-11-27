@@ -32,7 +32,7 @@ started=0
 while :; do
     s="$(state || echo unreachable)"
     case "$s" in
-        running | unreachable) ;;
+        running | stopping | unreachable) ;;
         *)
             # How the scenario this driver started ended
             if [ "$started" = 1 ]; then

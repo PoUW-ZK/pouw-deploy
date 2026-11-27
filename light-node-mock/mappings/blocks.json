@@ -1,0 +1,21 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/v1/blocks/[0-9]+"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "id": "blk:065aa711ce1d00ba4d122cf7bef2c0ccd69cf6dc39537141e489f3660f40c0dc",
+      "header": {
+        "height": 100
+      },
+      "txs": [],
+      "proof_txs": []
+    }
+  }
+}
